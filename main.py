@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from services.frappe_client import FrappeClient
+from typing import Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,13 +24,13 @@ frappe_client = FrappeClient(
 )
 
 @app.get("/api/orders/pending")
-async def get_pending_orders():
+async def get_pending_orders(date: Optional[str] = None):
     """
     Obtiene los pedidos en estado 'Submitted' desde ERPNext
     y los mapea al formato requerido por WhatsApp /listado
     """
     try:
-        orders = frappe_client.get_submitted_sales_orders()
+        orders = frappe_client.get_submitted_sales_orders(target_date=date)
         formatted_orders = []
         
         for order in orders:
@@ -54,3 +55,70 @@ async def get_pending_orders():
     except Exception as e:
         print(f"Error fetching pending orders: {str(e)}")
         raise HTTPException(status_code=500, detail="Error de conexión con ERPNext")
+
+from pydantic import BaseModel
+from typing import List, Optional
+
+class ProductoItem(BaseModel):
+    item_code: str
+    cantidad: float
+
+class OrderPayload(BaseModel):
+    remoteJid: str
+    contactName: str
+    fecha_hora_entrega: str
+    productos: List[ProductoItem]
+    monto_total: Optional[int] = 0
+
+@app.post("/api/orders")
+async def create_new_order(payload: OrderPayload):
+    """
+    Recibe la estructura del pedido extraída por la IA,
+    crea el cliente si no existe y luego genera el Sales Order en ERPNext.
+    """
+    try:
+        # 1. Obtener o crear Customer
+        customer_id = frappe_client.get_or_create_customer(payload.contactName, payload.remoteJid)
+        
+        # 2. Transcribir productos a lista de diccionarios
+        items = [{"item_code": p.item_code, "cantidad": p.cantidad} for p in payload.productos]
+        
+        # 3. Crear Sales Order
+        order_name = frappe_client.create_sales_order(
+            customer_id=customer_id,
+            delivery_date_str=payload.fecha_hora_entrega,
+            items=items
+        )
+        
+        return {"success": True, "order_name": order_name, "customer": customer_id}
+        
+    except Exception as e:
+        print(f"Error creating order: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/orders/{order_id}/deliver")
+async def deliver_order(order_id: str):
+    """
+    Marca un pedido como entregado mediante la generación y validación de 
+    un Delivery Note en ERPNext.
+    """
+    try:
+        dn_name = frappe_client.mark_order_as_delivered(order_id)
+        return {"success": True, "message": "Pedido entregado correctamente", "delivery_note": dn_name}
+    except Exception as e:
+        print(f"Error delivering order {order_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/orders/{order_id}/cancel")
+async def cancel_order(order_id: str):
+    """
+    Cancela un pedido (docstatus: 2). Captura validaciones rigurosas 
+    de ERPNext en caso de pagos bloqueantes.
+    """
+    try:
+        frappe_client.cancel_sales_order(order_id)
+        return {"success": True, "message": "Pedido cancelado correctamente"}
+    except Exception as e:
+        print(f"Error cancelling order {order_id}: {str(e)}")
+        # Devuelve el mensaje de ERPNext para que el frontend/bot sepa por qué falló
+        raise HTTPException(status_code=409, detail=str(e))
