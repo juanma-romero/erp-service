@@ -122,3 +122,36 @@ async def cancel_order(order_id: str):
         print(f"Error cancelling order {order_id}: {str(e)}")
         # Devuelve el mensaje de ERPNext para que el frontend/bot sepa por qué falló
         raise HTTPException(status_code=409, detail=str(e))
+
+@app.post("/api/orders/replace_latest")
+async def replace_latest_order(payload: OrderPayload):
+    """
+    Sustituye la última orden del cliente por los datos ingresados en el payload.
+    Para ello, busca y anula silenciosamente el último SO, creando uno nuevo.
+    """
+    try:
+        # 1. Obtener customer
+        customer_id = frappe_client.get_or_create_customer(payload.contactName, payload.remoteJid)
+        
+        # 2. Cancelar el último pedido activo de este cliente
+        last_order = frappe_client.get_latest_active_order(customer_id)
+        if last_order:
+            print(f"Cancelando última orden activa {last_order['name']} para reemplazo.")
+            frappe_client.cancel_sales_order(last_order["name"])
+            
+        # 3. Crear el nuevo
+        items = [{"item_code": p.item_code, "cantidad": p.cantidad} for p in payload.productos]
+        new_order_name = frappe_client.create_sales_order(
+            customer_id=customer_id,
+            delivery_date_str=payload.fecha_hora_entrega,
+            items=items
+        )
+        
+        return {
+            "success": True, 
+            "order_name": new_order_name, 
+            "cancelled_order": last_order["name"] if last_order else None
+        }
+    except Exception as e:
+        print(f"Error replacing order: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

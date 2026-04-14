@@ -230,3 +230,30 @@ class FrappeClient:
         except Exception as e:
             print(f"Excepcion interna al cancelar {order_name}: {str(e)}")
             raise
+
+    def get_latest_active_order(self, customer_id: str) -> Dict[str, Any]:
+        """
+        Busca el último Sales Order enviado (docstatus=1) para un cliente 
+        que aún esté pendiente de entrega.
+        """
+        api_url = f"{self.url}/api/resource/Sales Order"
+        filters_list = [
+            ["customer", "=", customer_id],
+            ["docstatus", "=", 1],
+            ["status", "in", ["To Deliver", "To Deliver and Bill"]]
+        ]
+        params = {
+            "filters": json.dumps(filters_list),
+            "fields": '["name"]',
+            "order_by": "creation desc",
+            "limit_page_length": 1
+        }
+        
+        try:
+            res = requests.get(api_url, headers=self.headers, params=params)
+            res.raise_for_status()
+            data = res.json().get("data", [])
+            return data[0] if data else None
+        except Exception as e:
+            print(f"Error fetching latest active order for {customer_id}: {str(e)}")
+            return None
