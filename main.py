@@ -69,7 +69,7 @@ class OrderPayload(BaseModel):
     contactName: str
     fecha_hora_entrega: str
     productos: List[ProductoItem]
-    monto_total: Optional[int] = 0
+    #monto_total: Optional[int] = 0
 
 @app.post("/api/orders")
 async def create_new_order(payload: OrderPayload):
