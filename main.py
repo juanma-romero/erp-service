@@ -158,6 +158,23 @@ async def replace_latest_order(payload: OrderPayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class PaymentPayload(BaseModel):
+    amount: float = 0
+    method: str = "efectivo"
+
+@app.post("/api/orders/{order_id}/pay")
+async def pay_order(order_id: str, payload: PaymentPayload):
+    """
+    Registra un pago para una orden en ERPNext.
+    Crea la factura (si no existe) y el Payment Entry asociado.
+    """
+    try:
+        result = frappe_client.register_payment(order_id, payload.amount, payload.method)
+        return result
+    except Exception as e:
+        print(f"Error registering payment for order {order_id}: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ENDPOINTS DE INFORMES — usados por el Agente IA
 # ─────────────────────────────────────────────────────────────────────────────
