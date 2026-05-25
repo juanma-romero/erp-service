@@ -70,41 +70,119 @@ class FrappeClient:
 
     def get_or_create_customer(self, contact_name: str, jid: str) -> str:
         """
-        Busca un cliente por nombre, si no existe lo crea y devuelve el ID.
+        Busca un cliente por su JID (ID) o número de teléfono.
+        Si no existe, lo crea asegurando que su ID de documento en ERPNext sea el JID,
+        y luego le asigna su nombre descriptivo de forma limpia.
         """
-        # Cleanup name
-        name = contact_name.strip() if contact_name else jid.split('@')[0]
-        if not name:
-            name = "Cliente General"
-            
-        # Buscar
-        api_url = f"{self.url}/api/resource/Customer"
-        params = {
-            "filters": f'[["customer_name", "=", "{name}"]]',
-            "fields": '["name"]'
-        }
-        try:
+        if not jid:
+            # Fallback si no hay JID por alguna razón
+            name = contact_name.strip() if contact_name else "Cliente General"
+            api_url = f"{self.url}/api/resource/Customer"
+            params = {
+                "filters": json.dumps([["customer_name", "=", name]]),
+                "fields": '["name"]'
+            }
             res = requests.get(api_url, headers=self.headers, params=params)
             res.raise_for_status()
             data = res.json().get("data", [])
             if data:
                 return data[0]["name"]
-                
-            # Si no existe, crear
+            
+            # Crear Cliente General
             new_customer = {
                 "customer_name": name,
-                "customer_type": "Individual",
-                "mobile_no": jid.split('@')[0] if jid else ""
+                "customer_type": "Individual"
             }
+            res_post = requests.post(api_url, headers=self.headers, json=new_customer)
+            res_post.raise_for_status()
+            return res_post.json()["data"]["name"]
+
+        phone = jid.split('@')[0]
+        friendly_name = contact_name.strip() if (contact_name and contact_name != "Desconocido") else ""
+        
+        api_url = f"{self.url}/api/resource/Customer"
+
+        # 1. Buscar primero por JID directo (clave de documento 'name' en ERPNext)
+        params_jid = {
+            "filters": json.dumps([["name", "=", jid]]),
+            "fields": '["name", "customer_name"]'
+        }
+        try:
+            res_jid = requests.get(api_url, headers=self.headers, params=params_jid)
+            res_jid.raise_for_status()
+            data_jid = res_jid.json().get("data", [])
+            
+            if data_jid:
+                customer_id = data_jid[0]["name"]
+                current_name = data_jid[0].get("customer_name")
+                
+                # Si tenemos un nombre amigable real y el actual en ERP es genérico o diferente, lo actualizamos
+                if friendly_name and current_name != friendly_name:
+                    print(f"[get_or_create_customer] Actualizando nombre de {customer_id} a '{friendly_name}'")
+                    try:
+                        requests.put(f"{api_url}/{customer_id}", headers=self.headers, json={"customer_name": friendly_name})
+                    except Exception as u_err:
+                        print(f"Error actualizando nombre amigable: {str(u_err)}")
+                        
+                return customer_id
+        except Exception as e:
+            print(f"Error buscando por JID: {str(e)}")
+
+        # 2. Si no se encontró por JID, buscar por el número de teléfono en 'mobile_no'
+        params_phone = {
+            "filters": json.dumps([["mobile_no", "=", phone]]),
+            "fields": '["name", "customer_name"]'
+        }
+        try:
+            res_phone = requests.get(api_url, headers=self.headers, params=params_phone)
+            res_phone.raise_for_status()
+            data_phone = res_phone.json().get("data", [])
+            
+            if data_phone:
+                customer_id = data_phone[0]["name"]
+                current_name = data_phone[0].get("customer_name")
+                
+                # Si tenemos un nombre amigable real y el actual en ERP es genérico o diferente, lo actualizamos
+                if friendly_name and current_name != friendly_name:
+                    print(f"[get_or_create_customer] Actualizando nombre de {customer_id} a '{friendly_name}'")
+                    try:
+                        requests.put(f"{api_url}/{customer_id}", headers=self.headers, json={"customer_name": friendly_name})
+                    except Exception as u_err:
+                        print(f"Error actualizando nombre amigable: {str(u_err)}")
+                        
+                return customer_id
+        except Exception as e:
+            print(f"Error buscando por teléfono: {str(e)}")
+
+        # 3. Si no existe, crear el cliente.
+        # Para forzar a que ERPNext asigne el JID como ID de documento (clave 'name'),
+        # primero creamos el Customer usando el JID como su 'customer_name'.
+        print(f"[get_or_create_customer] Creando nuevo cliente con ID (JID): {jid}")
+        new_customer = {
+            "customer_name": jid,
+            "customer_type": "Individual",
+            "mobile_no": phone
+        }
+        
+        try:
             res_post = requests.post(api_url, headers=self.headers, json=new_customer)
             if res_post.status_code != 200:
                 print("Error de validación Frappe al crear Customer:", res_post.text)
             res_post.raise_for_status()
-            return res_post.json()["data"]["name"]
+            customer_id = res_post.json()["data"]["name"] # Será el JID
+            
+            # 4. Ahora que el documento se llama con el JID, actualizamos su 'customer_name'
+            # con el nombre amigable real si está disponible, o un nombre por defecto
+            final_name = friendly_name if friendly_name else f"Cliente {phone}"
+            print(f"[get_or_create_customer] Asignando nombre amigable definitivo '{final_name}' a {customer_id}")
+            
+            requests.put(f"{api_url}/{customer_id}", headers=self.headers, json={"customer_name": final_name})
+            
+            return customer_id
             
         except Exception as e:
-            print(f"Error gestionando Customer {name}: {str(e)}")
-            raise Exception(f"No se pudo crear/obtener el cliente '{name}'. Error: {str(e)}")
+            print(f"Error creando Customer {jid}: {str(e)}")
+            raise Exception(f"No se pudo crear el cliente para el número {phone}. Error: {str(e)}")
             
     def create_sales_order(self, customer_id: str, delivery_date_str: str, items: List[Dict]) -> str:
         """
@@ -258,11 +336,93 @@ class FrappeClient:
             print(f"Error fetching latest active order for {customer_id}: {str(e)}")
             return None
 
+    # Mapa de cuentas por modo de pago (configuradas en ERPNext para la empresa Voraz)
+    # Claves: nombre exacto del Mode of Payment en ERPNext
+    # Valores: nombre exacto de la cuenta contable (Account)
+    ACCOUNT_BY_MOP = {
+        "Efectivo": "1110 - Efectivo - Vz",
+        "Transferencia bancaria": "1212 - Ueno - Vz",
+    }
+
+    def resolve_order_for_customer(self, jid: str) -> str:
+        """
+        Dado un JID de WhatsApp (ej: '19292551824@s.whatsapp.net'),
+        busca el Customer en ERPNext por JID, móvil o nombre
+        y devuelve el nombre del último Sales Order activo del cliente.
+        Lanza Exception si no se encuentra ningún pedido activo o si no existe el cliente.
+        """
+        phone = jid.split('@')[0]  # Extraer solo el número
+        api_url = f"{self.url}/api/resource/Customer"
+        
+        customers = []
+        
+        # 1. Intentar buscar por JID directo (clave de documento 'name')
+        try:
+            res = requests.get(api_url, headers=self.headers, params={
+                "filters": json.dumps([["name", "=", jid]]),
+                "fields": '["name", "customer_name"]'
+            })
+            res.raise_for_status()
+            customers = res.json().get("data", [])
+        except Exception as e:
+            print(f"[resolve_order_for_customer] Error buscando por JID directo: {str(e)}")
+
+        # 2. Si no, intentar buscar por mobile_no exacto
+        if not customers:
+            try:
+                res = requests.get(api_url, headers=self.headers, params={
+                    "filters": json.dumps([["mobile_no", "=", phone]]),
+                    "fields": '["name", "customer_name"]'
+                })
+                res.raise_for_status()
+                customers = res.json().get("data", [])
+            except Exception as e:
+                print(f"[resolve_order_for_customer] Error buscando por mobile_no: {str(e)}")
+
+        # 3. Si no, intentar buscar por name (ID) conteniendo el teléfono
+        if not customers:
+            try:
+                res = requests.get(api_url, headers=self.headers, params={
+                    "filters": json.dumps([["name", "like", f"%{phone}%"]]),
+                    "fields": '["name", "customer_name"]'
+                })
+                res.raise_for_status()
+                customers = res.json().get("data", [])
+            except Exception as e:
+                print(f"[resolve_order_for_customer] Error buscando por ID conteniendo teléfono: {str(e)}")
+
+        # 4. Fallback final: customer_name conteniendo el teléfono
+        if not customers:
+            try:
+                res = requests.get(api_url, headers=self.headers, params={
+                    "filters": json.dumps([["customer_name", "like", f"%{phone}%"]]),
+                    "fields": '["name", "customer_name"]'
+                })
+                res.raise_for_status()
+                customers = res.json().get("data", [])
+            except Exception as e:
+                print(f"[resolve_order_for_customer] Error en fallback de customer_name: {str(e)}")
+                
+        if not customers:
+            raise Exception(f"No se encontró ningún cliente con el número {phone} o JID {jid} en ERPNext.")
+        
+        # Usar el primer match y buscar su último pedido activo
+        customer_id = customers[0]["name"]
+        latest = self.get_latest_active_order(customer_id)
+        
+        if not latest:
+            raise Exception(f"El cliente '{customers[0].get('customer_name', customer_id)}' no tiene pedidos activos pendientes de cobro.")
+        
+        return latest["name"]
+
     def register_payment(self, order_name: str, amount: float, method: str) -> Dict[str, Any]:
         """
         Registra un pago para una orden.
         Si la orden no tiene una factura (Sales Invoice), la genera primero.
         Luego genera el Payment Entry por el monto y método especificados.
+        
+        La cuenta destino (paid_to) se asigna según el modo de pago usando ACCOUNT_BY_MOP.
+        Para Transferencia bancaria se generan automáticamente reference_no y reference_date.
         """
         from datetime import datetime
         
@@ -330,9 +490,15 @@ class FrappeClient:
             res_make_pe.raise_for_status()
             pe_doc = res_make_pe.json().get("message", {})
             
-            # Actualizar datos del pago
-            mop = "Transferencia bancaria" if method.lower() == "transferencia" else "Efectivo"
+            # Determinar modo de pago y cuenta destino
+            mop = "Transferencia bancaria" if method.lower() in ("transferencia", "transf", "banco") else "Efectivo"
             pe_doc["mode_of_payment"] = mop
+            
+            # Asignar cuenta destino correcta según el modo de pago
+            # Esto es necesario porque get_payment_entry devuelve una cuenta genérica
+            # que no coincide con la configurada para el modo de pago, causando error 417.
+            if mop in self.ACCOUNT_BY_MOP:
+                pe_doc["paid_to"] = self.ACCOUNT_BY_MOP[mop]
             
             if amount > 0:
                 pe_doc["paid_amount"] = amount

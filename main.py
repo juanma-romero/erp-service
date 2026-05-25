@@ -156,6 +156,21 @@ async def replace_latest_order(payload: OrderPayload):
     except Exception as e:
         print(f"Error replacing order: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+class CustomerSyncPayload(BaseModel):
+    remoteJid: str
+    contactName: str
+
+@app.post("/api/customers/sync")
+async def sync_customer(payload: CustomerSyncPayload):
+    """
+    Sincroniza un cliente en ERPNext usando su JID y su PushName.
+    """
+    try:
+        customer_id = frappe_client.get_or_create_customer(payload.contactName, payload.remoteJid)
+        return {"success": True, "customer": customer_id}
+    except Exception as e:
+        print(f"Error syncing customer: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class PaymentPayload(BaseModel):
@@ -167,9 +182,22 @@ async def pay_order(order_id: str, payload: PaymentPayload):
     """
     Registra un pago para una orden en ERPNext.
     Crea la factura (si no existe) y el Payment Entry asociado.
+    
+    El order_id puede ser:
+    - Un Sales Order ID directo (ej: SAL-ORD-2026-00360)
+    - Un JID de WhatsApp (ej: 19292551824@s.whatsapp.net) → se resuelve automáticamente
+      al último pedido activo del cliente correspondiente.
     """
+    resolved_order_id = order_id
     try:
-        result = frappe_client.register_payment(order_id, payload.amount, payload.method)
+        # Si el ID contiene '@', asumimos que es un JID de WhatsApp → buscar último pedido
+        if "@" in order_id:
+            print(f"[pay_order] Detectado JID '{order_id}', resolviendo último pedido activo...")
+            resolved_order_id = frappe_client.resolve_order_for_customer(order_id)
+            print(f"[pay_order] JID '{order_id}' resuelto a orden: {resolved_order_id}")
+        
+        result = frappe_client.register_payment(resolved_order_id, payload.amount, payload.method)
+        result["order_id"] = resolved_order_id  # Informar qué orden se cobró
         return result
     except Exception as e:
         print(f"Error registering payment for order {order_id}: {str(e)}")

@@ -2,32 +2,12 @@
 
 Microservicio en Python (FastAPI) encargado de interconectar el chatbot Voraz y los sistemas de IA con la instancia local de ERPNext (Frappe).
 
-## Funcionalidades Actuales (Fase 1)
-- Consulta de pedidos pendientes (Sales Orders en estado `Submitted`).
-- Mapeo transparente al formato requerido por el comando `/listado` de `whatsapp-baileys`.
-
-## Instalación y Uso Local
-
-1. Crea tu entorno virtual:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   ```
-2. Instala dependencias:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Configura el `.env`. Tienes que colocar un **API Key** y **API Secret** en ERPNext asociado a un usuario manager.
-   ```env
-   ERPNEXT_URL=http://localhost:8080
-   ERPNEXT_API_KEY=tu_key
-   ERPNEXT_API_SECRET=tu_secret
-   PORT=8001
-   ```
-4. Ejecuta el servidor estableciendo el puerto manual:
-   ```bash
-   uvicorn main:app --port 8001 --reload
-   ```
+## Funcionalidades Actuales
+- **Gestión Unificada de Clientes (Customers):** Arquitectura JID-first. El ID de cada cliente en ERPNext es su WhatsApp JID, evitando colisiones. Sincronización automática de PushNames e identificación fluida desde móvil.
+- **Consulta de Pedidos Pendientes:** Obtención de Sales Orders en estado `Submitted` y mapeo estructurado.
+- **Creación y Reemplazo de Pedidos:** Flujos robustos integrados con el asistente de IA.
+- **Cobros Integrados con Resolución por JID:** Registro automático de facturas (Sales Invoices) y recibos de cobro (Payment Entries) resolviendo el JID o número del cliente al último pedido activo.
+- **Sincronización de Clientes (`POST /api/customers/sync`):** Endpoint de alta eficiencia para dar de alta o actualizar contactos.
 
 ## Estructura
 - `/services/frappe_client.py`: Clase que engloba toda la comunicación REST con ERPNext.
