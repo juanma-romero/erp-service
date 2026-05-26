@@ -10,5 +10,9 @@ Microservicio en Python (FastAPI) encargado de interconectar el chatbot Voraz y 
 - **Sincronización de Clientes (`POST /api/customers/sync`):** Endpoint de alta eficiencia para dar de alta o actualizar contactos.
 
 ## Estructura
-- `/services/frappe_client.py`: Clase que engloba toda la comunicación REST con ERPNext.
-- `main.py`: Rutas principales FastAPI (REST API).
+- `/config.py`: Configuraciones y variables de entorno.
+- `/dependencies.py`: Instanciación e inyección de los servicios para los routers.
+- `/main.py`: Inicialización de la app FastAPI y conexión de los routers.
+- `/routers/`: Endpoints divididos por dominio (`orders.py`, `customers.py`, `payments.py`, `reports.py`).
+- `/schemas/`: Modelos y esquemas de datos de Pydantic.
+- `/services/frappe/`: Cliente HTTP base y servicios especializados por dominio (`order_service.py`, `customer_service.py`, `payment_service.py`, `report_service.py`) para interactuar con ERPNext de forma desacoplada.
