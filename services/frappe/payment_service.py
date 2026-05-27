@@ -8,8 +8,8 @@ class PaymentService(BaseFrappeClient):
     # Claves: nombre exacto del Mode of Payment en ERPNext
     # Valores: nombre exacto de la cuenta contable (Account)
     ACCOUNT_BY_MOP = {
-        "Efectivo": "1110 - Efectivo - Vz",
-        "Transferencia bancaria": "1212 - Ueno - Vz",
+        "Cash": "Efectivo - Vz",
+        "Wire Transfer": "1212 - Ueno - Vz",
     }
 
     def register_payment(self, order_name: str, amount: float, method: str) -> Dict[str, Any]:
@@ -88,7 +88,7 @@ class PaymentService(BaseFrappeClient):
             pe_doc = res_make_pe.json().get("message", {})
             
             # Determinar modo de pago y cuenta destino
-            mop = "Transferencia bancaria" if method.lower() in ("transferencia", "transf", "banco") else "Efectivo"
+            mop = "Wire Transfer" if method.lower() in ("transferencia", "transf", "banco") else "Cash"
             pe_doc["mode_of_payment"] = mop
             
             # Asignar cuenta destino correcta según el modo de pago
@@ -111,7 +111,7 @@ class PaymentService(BaseFrappeClient):
                     allocated_total += to_allocate
                 pe_doc["unallocated_amount"] = max(0, amount - allocated_total)
                 
-            if mop == "Transferencia bancaria":
+            if mop == "Wire Transfer":
                 pe_doc["reference_no"] = f"REF-{datetime.now().strftime('%Y%m%d%H%M%S')}"
                 pe_doc["reference_date"] = datetime.now().strftime("%Y-%m-%d")
                 

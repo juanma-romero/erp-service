@@ -214,8 +214,8 @@ class OrderService(BaseFrappeClient):
     # Claves: nombre exacto del Mode of Payment en ERPNext
     # Valores: nombre exacto de la cuenta contable (Account)
     ACCOUNT_BY_MOP = {
-        "Efectivo": "1110 - Efectivo - Vz",
-        "Transferencia bancaria": "1212 - Ueno - Vz",
+        "Cash": "Efectivo - Vz",
+        "Wire Transfer": "1212 - Ueno - Vz",
     }
 
     def resolve_order_for_customer(self, jid: str) -> str:
