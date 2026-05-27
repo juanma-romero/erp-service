@@ -3,13 +3,15 @@ import json
 from datetime import datetime
 from typing import Dict, Any
 from .base_client import BaseFrappeClient
+from config import settings
 
 class AccountingService(BaseFrappeClient):
-    # Mapa de cuentas por modo de pago (origen de los fondos)
-    ACCOUNT_BY_MOP = {
-        "Cash": "1110 - Efectivo - Vz",
-        "Wire Transfer": "1212 - Ueno - Vz",
-    }
+    @property
+    def ACCOUNT_BY_MOP(self):
+        return {
+            "Cash": settings.ACCOUNT_CASH,
+            "Wire Transfer": settings.ACCOUNT_BANK,
+        }
 
     def create_journal_entry(self, concept_account: str, amount: float, method: str, remark: str = "Registro de gasto") -> Dict[str, Any]:
         """

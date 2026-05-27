@@ -2,15 +2,15 @@ import requests
 import json
 from typing import List, Dict, Any
 from .base_client import BaseFrappeClient
+from config import settings
 
 class PaymentService(BaseFrappeClient):
-    # Mapa de cuentas por modo de pago (configuradas en ERPNext para la empresa Voraz)
-    # Claves: nombre exacto del Mode of Payment en ERPNext
-    # Valores: nombre exacto de la cuenta contable (Account)
-    ACCOUNT_BY_MOP = {
-        "Cash": "Efectivo - Vz",
-        "Wire Transfer": "1212 - Ueno - Vz",
-    }
+    @property
+    def ACCOUNT_BY_MOP(self):
+        return {
+            "Cash": settings.ACCOUNT_CASH,
+            "Wire Transfer": settings.ACCOUNT_BANK,
+        }
 
     def register_payment(self, order_name: str, amount: float, method: str) -> Dict[str, Any]:
         """
