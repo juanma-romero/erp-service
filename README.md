@@ -17,3 +17,13 @@ Microservicio en Python (FastAPI) encargado de interconectar el chatbot Voraz y 
 - `/routers/`: Endpoints divididos por dominio (`orders.py`, `customers.py`, `payments.py`, `reports.py`, `accounting.py`).
 - `/schemas/`: Modelos y esquemas de datos de Pydantic.
 - `/services/frappe/`: Cliente HTTP base y servicios especializados por dominio (`order_service.py`, `customer_service.py`, `payment_service.py`, `report_service.py`, `accounting_service.py`) para interactuar con ERPNext de forma desacoplada.
+
+## Configuración y Variables de Entorno (.env)
+El archivo `.env` en este directorio almacena las credenciales locales y de producción.
+
+### Consultas a Producción
+Para cuando sea necesario realizar consultas manuales, depuraciones o scripts `curl` a la base de datos de producción de ERPNext de manera segura, se han definido las siguientes credenciales de referencia:
+- `ERPNEXT_URL_PROD`: URL base de la instancia de producción.
+- `ERPNEXT_API_KEY_PROD`: API Key de producción.
+- `ERPNEXT_API_SECRET_PROD`: API Secret de producción.
+

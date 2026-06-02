@@ -4,15 +4,15 @@ from .base_client import BaseFrappeClient
 
 class ReportService(BaseFrappeClient):
     def get_sales_summary(self, date_from: str, date_to: str):
-        api_url = f"{self.url}/api/resource/Sales Order"
+        api_url = f"{self.url}/api/resource/Delivery Note"
         filters_list = [
             ["docstatus", "=", 1],
-            ["transaction_date", ">=", date_from],
-            ["transaction_date", "<=", date_to],
+            ["posting_date", ">=", date_from],
+            ["posting_date", "<=", date_to],
         ]
         params = {
             "filters": json.dumps(filters_list),
-            "fields": '["name", "grand_total", "transaction_date", "customer_name"]',
+            "fields": '["name", "grand_total", "posting_date", "customer_name"]',
             "limit_page_length": 500,
         }
         response = requests.get(api_url, headers=self.headers, params=params)
@@ -31,11 +31,11 @@ class ReportService(BaseFrappeClient):
         }
 
     def get_sales_by_product(self, date_from: str, date_to: str):
-        api_url = f"{self.url}/api/resource/Sales Order"
+        api_url = f"{self.url}/api/resource/Delivery Note"
         filters_list = [
             ["docstatus", "=", 1],
-            ["transaction_date", ">=", date_from],
-            ["transaction_date", "<=", date_to],
+            ["posting_date", ">=", date_from],
+            ["posting_date", "<=", date_to],
         ]
         params = {
             "filters": json.dumps(filters_list),
@@ -50,7 +50,7 @@ class ReportService(BaseFrappeClient):
             return {"periodo": {"desde": date_from, "hasta": date_to}, "productos": []}
 
         product_totals = {}
-        items_api_url = f"{self.url}/api/resource/Sales Order Item"
+        items_api_url = f"{self.url}/api/resource/Delivery Note Item"
         order_names = [o["name"] for o in orders]
 
         items_filters = [
