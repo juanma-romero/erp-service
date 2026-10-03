@@ -41,13 +41,18 @@ async def create_new_order(payload: OrderPayload):
         
         items = [{"item_code": p.item_code, "cantidad": p.cantidad} for p in payload.productos]
         
-        order_name = order_service.create_sales_order(
+        order_result = order_service.create_sales_order(
             customer_id=customer_id,
             delivery_date_str=payload.fecha_hora_entrega,
             items=items
         )
         
-        return {"success": True, "order_name": order_name, "customer": customer_id}
+        return {
+            "success": True, 
+            "order_name": order_result["order_name"], 
+            "grand_total": order_result["grand_total"],
+            "customer": customer_id
+        }
         
     except Exception as e:
         print(f"Error creating order: {str(e)}")
@@ -82,7 +87,7 @@ async def replace_latest_order(payload: OrderPayload):
             order_service.cancel_sales_order(last_order["name"])
             
         items = [{"item_code": p.item_code, "cantidad": p.cantidad} for p in payload.productos]
-        new_order_name = order_service.create_sales_order(
+        order_result = order_service.create_sales_order(
             customer_id=customer_id,
             delivery_date_str=payload.fecha_hora_entrega,
             items=items
@@ -90,7 +95,8 @@ async def replace_latest_order(payload: OrderPayload):
         
         return {
             "success": True, 
-            "order_name": new_order_name, 
+            "order_name": order_result["order_name"], 
+            "grand_total": order_result["grand_total"],
             "cancelled_order": last_order["name"] if last_order else None
         }
     except Exception as e:

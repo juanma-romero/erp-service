@@ -97,7 +97,13 @@ class OrderService(BaseFrappeClient):
             res_submit = requests.put(submit_url, headers=self.headers, json={"docstatus": 1})
             res_submit.raise_for_status()
             
-            return order_name
+            data_submitted = res_submit.json().get("data", {})
+            grand_total = data_submitted.get("grand_total") or res.json().get("data", {}).get("grand_total", 0)
+            
+            return {
+                "order_name": order_name,
+                "grand_total": grand_total
+            }
             
         except Exception as e:
             print(f"Error creando Sales Order: {str(e)}")
