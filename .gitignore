@@ -2,4 +2,3 @@
 .venv
 .service
 __pycache__/
-Dockerfile
