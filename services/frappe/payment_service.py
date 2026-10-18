@@ -21,7 +21,9 @@ class PaymentService(BaseFrappeClient):
         La cuenta destino (paid_to) se asigna según el modo de pago usando ACCOUNT_BY_MOP.
         Para Transferencia bancaria se generan automáticamente reference_no y reference_date.
         """
-        from datetime import datetime
+        from datetime import datetime, timezone, timedelta
+        tz_py = timezone(timedelta(hours=-3))
+        now_py = datetime.now(tz_py)
         
         # 1. Buscar si ya existe una factura (Sales Invoice) para esta orden
         api_url_si = f"{self.url}/api/resource/Sales Invoice"
@@ -111,9 +113,11 @@ class PaymentService(BaseFrappeClient):
                     allocated_total += to_allocate
                 pe_doc["unallocated_amount"] = max(0, amount - allocated_total)
                 
+            pe_doc["posting_date"] = now_py.strftime("%Y-%m-%d")
+
             if mop == "Wire Transfer":
-                pe_doc["reference_no"] = f"REF-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-                pe_doc["reference_date"] = datetime.now().strftime("%Y-%m-%d")
+                pe_doc["reference_no"] = f"REF-{now_py.strftime('%Y%m%d%H%M%S')}"
+                pe_doc["reference_date"] = now_py.strftime("%Y-%m-%d")
                 
             # Guardar el Payment Entry
             api_url_pe = f"{self.url}/api/resource/Payment Entry"

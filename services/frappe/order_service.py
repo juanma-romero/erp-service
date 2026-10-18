@@ -1,5 +1,6 @@
 import requests
 import json
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 from .base_client import BaseFrappeClient
 
@@ -72,12 +73,14 @@ class OrderService(BaseFrappeClient):
                 "qty": float(item["cantidad"])
             })
             
-        # Extraer fecha corta para la obligatoria
-        short_date = delivery_date_str.split(" ")[0] if delivery_date_str else ""
+        # Extraer fecha corta para la obligatoria de entrega y fecha actual en Paraguay
+        tz_py = timezone(timedelta(hours=-3))
+        today_py = datetime.now(tz_py).strftime("%Y-%m-%d")
+        short_date = delivery_date_str.split(" ")[0] if delivery_date_str else today_py
         
         new_order = {
             "customer": customer_id,
-            "transaction_date": short_date,
+            "transaction_date": today_py,
             "delivery_date": short_date,
             "custom_dia_y_hora_entrega": delivery_date_str,
             "items": frappe_items,
@@ -224,74 +227,96 @@ class OrderService(BaseFrappeClient):
         "Wire Transfer": "1212 - Ueno - Vz",
     }
 
-    def resolve_order_for_customer(self, jid: str) -> str:
+    def resolve_order_for_customer(self, identifier: str) -> str:
         """
-        Dado un JID de WhatsApp (ej: '19292551824@s.whatsapp.net'),
-        busca el Customer en ERPNext por JID, móvil o nombre
-        y devuelve el nombre del último Sales Order activo del cliente.
-        Lanza Exception si no se encuentra ningún pedido activo o si no existe el cliente.
+        Dado un identificador (JID, teléfono o nombre/apellido del cliente),
+        busca el Customer en ERPNext y devuelve el nombre del último Sales Order activo.
+        Lanza Exception si no se encuentra cliente o si no tiene pedidos activos.
         """
-        phone = jid.split('@')[0]  # Extraer solo el número
+        raw_id = identifier.strip()
         api_url = f"{self.url}/api/resource/Customer"
         
         customers = []
-        
-        # 1. Intentar buscar por JID directo (clave de documento 'name')
-        try:
-            res = requests.get(api_url, headers=self.headers, params={
-                "filters": json.dumps([["name", "=", jid]]),
-                "fields": '["name", "customer_name"]'
-            })
-            res.raise_for_status()
-            customers = res.json().get("data", [])
-        except Exception as e:
-            print(f"[resolve_order_for_customer] Error buscando por JID directo: {str(e)}")
+        phone = ''
+        if '@' in raw_id:
+            phone = raw_id.split('@')[0]
+        else:
+            digits = ''.join(c for c in raw_id if c.isdigit())
+            if len(digits) >= 6:
+                phone = digits
 
-        # 2. Si no, intentar buscar por mobile_no exacto
-        if not customers:
+        # 1. Si parece teléfono o JID:
+        if phone:
+            # 1.1 JID directo en name
             try:
                 res = requests.get(api_url, headers=self.headers, params={
-                    "filters": json.dumps([["mobile_no", "=", phone]]),
+                    "filters": json.dumps([["name", "=", raw_id]]),
                     "fields": '["name", "customer_name"]'
                 })
                 res.raise_for_status()
                 customers = res.json().get("data", [])
             except Exception as e:
-                print(f"[resolve_order_for_customer] Error buscando por mobile_no: {str(e)}")
+                print(f"[resolve_order_for_customer] Error buscando por JID directo: {str(e)}")
 
-        # 3. Si no, intentar buscar por name (ID) conteniendo el teléfono
+            # 1.2 mobile_no exacto
+            if not customers:
+                try:
+                    res = requests.get(api_url, headers=self.headers, params={
+                        "filters": json.dumps([["mobile_no", "=", phone]]),
+                        "fields": '["name", "customer_name"]'
+                    })
+                    res.raise_for_status()
+                    customers = res.json().get("data", [])
+                except Exception as e:
+                    print(f"[resolve_order_for_customer] Error buscando por mobile_no: {str(e)}")
+
+            # 1.3 name like %phone%
+            if not customers:
+                try:
+                    res = requests.get(api_url, headers=self.headers, params={
+                        "filters": json.dumps([["name", "like", f"%{phone}%"]]),
+                        "fields": '["name", "customer_name"]'
+                    })
+                    res.raise_for_status()
+                    customers = res.json().get("data", [])
+                except Exception as e:
+                    print(f"[resolve_order_for_customer] Error buscando por ID conteniendo teléfono: {str(e)}")
+
+        # 2. Si no hubo match por teléfono o el identificador es un nombre:
         if not customers:
+            # 2.1 customer_name like %identifier%
             try:
                 res = requests.get(api_url, headers=self.headers, params={
-                    "filters": json.dumps([["name", "like", f"%{phone}%"]]),
+                    "filters": json.dumps([["customer_name", "like", f"%{raw_id}%"]]),
                     "fields": '["name", "customer_name"]'
                 })
                 res.raise_for_status()
                 customers = res.json().get("data", [])
             except Exception as e:
-                print(f"[resolve_order_for_customer] Error buscando por ID conteniendo teléfono: {str(e)}")
+                print(f"[resolve_order_for_customer] Error buscando por customer_name like: {str(e)}")
 
-        # 4. Fallback final: customer_name conteniendo el teléfono
+        # 2.2 name (ID) like %identifier% (útil si el customer ID se guardó con nombre)
         if not customers:
             try:
                 res = requests.get(api_url, headers=self.headers, params={
-                    "filters": json.dumps([["customer_name", "like", f"%{phone}%"]]),
+                    "filters": json.dumps([["name", "like", f"%{raw_id}%"]]),
                     "fields": '["name", "customer_name"]'
                 })
                 res.raise_for_status()
                 customers = res.json().get("data", [])
             except Exception as e:
-                print(f"[resolve_order_for_customer] Error en fallback de customer_name: {str(e)}")
+                print(f"[resolve_order_for_customer] Error buscando por name like raw_id: {str(e)}")
                 
         if not customers:
-            raise Exception(f"No se encontró ningún cliente con el número {phone} o JID {jid} en ERPNext.")
+            raise Exception(f"No se encontró ningún cliente asociado a '{raw_id}' en ERPNext.")
         
         # Usar el primer match y buscar su último pedido activo
         customer_id = customers[0]["name"]
+        customer_disp = customers[0].get('customer_name', customer_id)
         latest = self.get_latest_active_order(customer_id)
         
         if not latest:
-            raise Exception(f"El cliente '{customers[0].get('customer_name', customer_id)}' no tiene pedidos activos pendientes de cobro.")
+            raise Exception(f"El cliente '{customer_disp}' no tiene pedidos activos pendientes de cobro.")
         
         return latest["name"]
 

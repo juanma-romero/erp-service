@@ -1,6 +1,6 @@
 import requests
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
 from .base_client import BaseFrappeClient
 from config import settings
@@ -26,7 +26,8 @@ class AccountingService(BaseFrappeClient):
         origin_account = self.ACCOUNT_BY_MOP[mop]
         
         # Construir el payload del Asiento Contable
-        posting_date = datetime.now().strftime("%Y-%m-%d")
+        tz_py = timezone(timedelta(hours=-3))
+        posting_date = datetime.now(tz_py).strftime("%Y-%m-%d")
         
         journal_doc = {
             "doctype": "Journal Entry",
