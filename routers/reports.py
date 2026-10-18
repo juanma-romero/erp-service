@@ -11,6 +11,14 @@ async def get_sales_summary(date_from: str, date_to: str):
         print(f"Error en get_sales_summary: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error al consultar ventas: {str(e)}")
 
+@router.get("/net-summary")
+async def get_net_sales_summary(date_from: str, date_to: str):
+    try:
+        return report_service.get_net_sales_summary(date_from, date_to)
+    except Exception as e:
+        print(f"Error en get_net_sales_summary: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al consultar ventas netas: {str(e)}")
+
 @router.get("/by-product")
 async def get_sales_by_product(date_from: str, date_to: str):
     try:
