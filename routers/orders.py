@@ -61,11 +61,20 @@ async def create_new_order(payload: OrderPayload):
 @router.post("/{order_id}/deliver")
 async def deliver_order(order_id: str):
     try:
-        dn_name = order_service.mark_order_as_delivered(order_id)
-        return {"success": True, "message": "Pedido entregado correctamente", "delivery_note": dn_name}
+        # Si no es un ID directo de Sales Order (ej. SAL-ORD-...), resolvemos por cliente (JID/teléfono/nombre)
+        resolved_order_id = order_id
+        upper_id = order_id.upper()
+        is_sales_order = upper_id.startswith("SAL") or ("-" in order_id and not "@" in order_id and any(c.isalpha() for c in order_id) and any(c.isdigit() for c in order_id) and not any(m in order_id.lower() for m in ["cliente", "contact"]))
+        if not is_sales_order:
+            print(f"[deliver_order] Identificador no es Sales Order ('{order_id}'), resolviendo cliente...")
+            resolved_order_id = order_service.resolve_order_for_customer(order_id)
+            print(f"[deliver_order] '{order_id}' resuelto a orden: {resolved_order_id}")
+
+        dn_name = order_service.mark_order_as_delivered(resolved_order_id)
+        return {"success": True, "order_id": resolved_order_id, "message": "Pedido entregado correctamente", "delivery_note": dn_name}
     except Exception as e:
         print(f"Error delivering order {order_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/{order_id}/cancel")
 async def cancel_order(order_id: str):

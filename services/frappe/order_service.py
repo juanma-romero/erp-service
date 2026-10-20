@@ -316,7 +316,7 @@ class OrderService(BaseFrappeClient):
         latest = self.get_latest_active_order(customer_id)
         
         if not latest:
-            raise Exception(f"El cliente '{customer_disp}' no tiene pedidos activos pendientes de cobro.")
+            raise Exception(f"El cliente '{customer_disp}' no tiene pedidos activos pendientes de entrega o cobro.")
         
         return latest["name"]
 
