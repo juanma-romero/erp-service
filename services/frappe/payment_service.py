@@ -131,10 +131,17 @@ class PaymentService(BaseFrappeClient):
             res_submit_pe = requests.put(f"{api_url_pe}/{pe_name}", headers=self.headers, json={"docstatus": 1})
             res_submit_pe.raise_for_status()
             
+            # Consultar saldo pendiente actualizado de la factura
+            res_inv = requests.get(f"{self.url}/api/resource/Sales Invoice/{si_name}", headers=self.headers)
+            outstanding = 0.0
+            if res_inv.status_code == 200:
+                outstanding = float(res_inv.json().get("data", {}).get("outstanding_amount", 0.0))
+
             return {
                 "success": True,
                 "payment_entry": pe_name,
-                "sales_invoice": si_name
+                "sales_invoice": si_name,
+                "outstanding_amount": outstanding
             }
             
         except Exception as e:
