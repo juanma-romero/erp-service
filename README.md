@@ -20,6 +20,27 @@ Microservicio en Python (FastAPI) encargado de interconectar el chatbot Voraz y 
 
 ## Configuración y Variables de Entorno (.env)
 El archivo `.env` en este directorio almacena las credenciales locales y de producción.
+La plantilla versionada (sin secretos) es **`.env.example`**: `cp .env.example .env` y completar.
+
+### Variables reconocidas
+
+| Variable | Default en `config.py` | Descripción |
+|---|---|---|
+| `ERPNEXT_URL` | `http://localhost:8080` | URL base de la instancia de ERPNext |
+| `ERPNEXT_API_KEY` | *(vacío)* | API Key de ERPNext |
+| `ERPNEXT_API_SECRET` | *(vacío)* | API Secret de ERPNext |
+| `ACCOUNT_CASH` | `Efectivo - Vz` | Cuenta de caja para cobros en efectivo |
+| `ACCOUNT_BANK` | `1214 - Familiar - Vz` | Cuenta bancaria para cobros por transferencia (Wire Transfer) |
+
+⚠️ `ACCOUNT_CASH` y `ACCOUNT_BANK` deben estar definidas **en cada despliegue**: el default del
+código es solo un respaldo. Un `.env` al que le falte `ACCOUNT_BANK` manda los cobros por
+transferencia a la cuenta del default, en silencio.
+
+Variables usadas fuera de `config.py`:
+- `VENTAS_CACHE_DIR` (default `/app/data/contabilidad`): caché de los reportes de ventas.
+- `PORT`: puerto de uvicorn.
+- `ERPNEXT_URL_PROD` / `ERPNEXT_API_KEY_PROD` / `ERPNEXT_API_SECRET_PROD`: credenciales de
+  referencia para consultas manuales (no las usa el servicio en ejecución).
 
 ### Consultas a Producción
 Para cuando sea necesario realizar consultas manuales, depuraciones o scripts `curl` a la base de datos de producción de ERPNext de manera segura, se han definido las siguientes credenciales de referencia:

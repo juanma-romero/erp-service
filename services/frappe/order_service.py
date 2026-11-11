@@ -219,14 +219,6 @@ class OrderService(BaseFrappeClient):
             print(f"Error fetching latest active order for {customer_id}: {str(e)}")
             return None
 
-    # Mapa de cuentas por modo de pago (configuradas en ERPNext para la empresa Voraz)
-    # Claves: nombre exacto del Mode of Payment en ERPNext
-    # Valores: nombre exacto de la cuenta contable (Account)
-    ACCOUNT_BY_MOP = {
-        "Cash": "Efectivo - Vz",
-        "Wire Transfer": "1212 - Ueno - Vz",
-    }
-
     def resolve_order_for_customer(self, identifier: str) -> str:
         """
         Dado un identificador (JID, teléfono o nombre/apellido del cliente),

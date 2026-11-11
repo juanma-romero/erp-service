@@ -8,6 +8,6 @@ class Settings:
     ERPNEXT_API_KEY: str = os.getenv("ERPNEXT_API_KEY", "")
     ERPNEXT_API_SECRET: str = os.getenv("ERPNEXT_API_SECRET", "")
     ACCOUNT_CASH: str = os.getenv("ACCOUNT_CASH", "Efectivo - Vz")
-    ACCOUNT_BANK: str = os.getenv("ACCOUNT_BANK", "1212 - Ueno - Vz")
+    ACCOUNT_BANK: str = os.getenv("ACCOUNT_BANK", "1214 - Familiar - Vz")
 
 settings = Settings()
