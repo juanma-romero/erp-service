@@ -185,41 +185,39 @@ class ERPNextClient {
         }
       });
       
-      if (response.data && response.data.data) {
+      if (response.data && response.data.data && response.data.data.length > 0) {
         return response.data.data.map((item: any) => item.name);
       }
-      
-      return [];
     } catch (error: any) {
-      console.error("Failed to get DocTypes:", error?.message || 'Unknown error');
-      
-      // Try an alternative approach if the first one fails
-      try {
-        // Try using the method API to get doctypes
-        const altResponse = await this.axiosInstance.get('/api/method/frappe.desk.search.search_link', {
-          params: {
-            doctype: 'DocType',
-            txt: '',
-            limit: 500
-          }
-        });
-        
-        if (altResponse.data && altResponse.data.results) {
-          return altResponse.data.results.map((item: any) => item.value);
-        }
-        
-        return [];
-      } catch (altError: any) {
-        console.error("Alternative DocType fetch failed:", altError?.message || 'Unknown error');
-        
-        // Fallback: Return a list of common DocTypes
-        return [
-          "Customer", "Supplier", "Item", "Sales Order", "Purchase Order",
-          "Sales Invoice", "Purchase Invoice", "Employee", "Lead", "Opportunity",
-          "Quotation", "Payment Entry", "Journal Entry", "Stock Entry"
-        ];
-      }
+      // REST API /api/resource/DocType is restricted to System Manager in Frappe (returns 403 for bot users).
+      // Fall through to search_link without polluting stderr with an expected 403.
     }
+
+    // Try an alternative approach if the first one fails
+    try {
+      // Try using the method API to get doctypes
+      const altResponse = await this.axiosInstance.get('/api/method/frappe.desk.search.search_link', {
+        params: {
+          doctype: 'DocType',
+          txt: '',
+          limit: 500
+        }
+      });
+      
+      const results = altResponse.data?.message || altResponse.data?.results;
+      if (Array.isArray(results) && results.length > 0) {
+        return results.map((item: any) => (typeof item === 'string' ? item : item.value || item.name)).filter(Boolean);
+      }
+    } catch (altError: any) {
+      console.error("Alternative DocType fetch failed:", altError?.message || 'Unknown error');
+    }
+
+    // Fallback: Return a list of common DocTypes
+    return [
+      "Customer", "Supplier", "Item", "Sales Order", "Purchase Order",
+      "Sales Invoice", "Purchase Invoice", "Employee", "Lead", "Opportunity",
+      "Quotation", "Payment Entry", "Journal Entry", "Stock Entry"
+    ];
   }
 }
 
@@ -976,6 +974,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "get_doctypes": {
       try {
         const doctypes = await erpnext.getAllDocTypes();
+        if (!doctypes || doctypes.length === 0) {
+          return {
+            content: [{
+              type: "text",
+              text: "Failed to get DocTypes: No DocTypes found or access denied"
+            }],
+            isError: true
+          };
+        }
         return {
           content: [{
             type: "text",
